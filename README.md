@@ -1,11 +1,3 @@
+# SPH NIRU Hackathon
 
-  # kilinda-sauti
-
-  This is a code bundle for kilinda-sauti. The original project is available at https://www.figma.com/design/iPcpzO9a4cIX8LPoSuVZh5/kilinda-sauti.
-
-  ## Running the code
-
-  Run `npm i` to install the dependencies.
-
-  Run `npm run dev` to start the development server.
-  
+This is the contribution of the team consisting of Joab, Chris M, C A, Jilo and Beyonce in regards to the NIRU AI Hackathon. Our project is a Localized Deepfake Audio and Video Detector
