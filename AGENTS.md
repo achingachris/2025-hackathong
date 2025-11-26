@@ -2,12 +2,20 @@
 
 ## Project Structure & Module Organization
 - `frontend/` holds the Vite + React (TypeScript) UI. Core entry points: `src/main.tsx`, `src/App.tsx` (custom client-side router), and page-level views in `src/pages/`. Shared UI lives in `src/components/`; global styles in `src/index.css` and `src/styles/`. Reference text assets sit in `src/guidelines/`.
-- `server/` is currently a placeholder for future API work—coordinate before adding runtime code. The root `README.md` captures the product vision.
+- `server/` houses the Django backend API. Keep the Django project (manage.py plus settings package) rooted here, add new apps within `server/`, and keep backend-only assets isolated from the frontend. The root `README.md` captures the product vision.
+
+## Architecture Boundaries
+- Keep React and Django isolated: no shared runtime code or dependencies across `frontend/` and `server/`. Communication happens only over HTTP APIs.
+- Frontend domain logic should live in TypeScript hooks/utils; backend owns validation, persistence, and enforcement.
+- Version and document API contracts (endpoints, payloads, auth) alongside backend changes; expose only stable, typed responses to the UI.
+- Prefer a single API client surface inside the frontend (e.g., a services/lib layer) rather than ad hoc `fetch` calls scattered in pages/components.
+- Secrets and environment config stay out of source; use `.env.local` patterns and document required keys.
 
 ## Build, Test, and Development Commands
 - Install deps: `cd frontend && npm install`.
 - Run locally: `npm run dev` (served by Vite; use `--host` when testing on LAN or mobile).
 - Production build: `npm run build` (validates TypeScript usage and produces `dist/`).
+- Backend (Django): from `server/`, use a virtualenv, install dependencies (`pip install -r requirements.txt` when present), and run `python manage.py runserver` for local API development.
 
 ## Coding Style & Naming Conventions
 - Language: TypeScript + React functional components; prefer hooks and props over shared globals.
