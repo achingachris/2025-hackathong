@@ -4,8 +4,8 @@ from rest_framework.decorators import api_view, permission_classes
 from rest_framework.response import Response
 from django.core.files.storage import default_storage
 import os
-from .models import AudioAnalysis, TextAnalysis
-from .analyzers import AudioAnalyzer, TextAnalyzer
+from .models import AudioAnalysis, TextAnalysis, VideoAnalysis
+from .analyzers import AudioAnalyzer, TextAnalyzer, VideoAnalyzer
 from rest_framework.views import APIView
 from rest_framework.permissions import IsAuthenticated, IsAuthenticatedOrReadOnly
 
@@ -27,6 +27,7 @@ def reports(request):
 # Initialize analyzers (in production, use singleton pattern)
 audio_analyzer = AudioAnalyzer()
 text_analyzer = TextAnalyzer()
+video_analyzer = VideoAnalyzer()
 
 class AudioAnalysisView(APIView):
     permission_classes = [IsAuthenticatedOrReadOnly]
@@ -128,6 +129,65 @@ class TextAnalysisView(APIView):
                 'probabilities': results['probabilities'],
                 'text_length': results['text_length'],
                 'word_count': results['word_count'],
+                'analysis_type': results['analysis_type'],
+                'created_at': analysis.created_at
+            }, status=status.HTTP_200_OK)
+
+        except Exception as e:
+            return Response(
+                {'error': str(e)},
+                status=status.HTTP_500_INTERNAL_SERVER_ERROR
+            )
+
+class VideoAnalysisView(APIView):
+    permission_classes = [IsAuthenticatedOrReadOnly]
+
+    def post(self, request, *args, **kwargs):
+        """
+        Analyze video file for deepfake detection
+        """
+        if 'video' not in request.FILES:
+            return Response(
+                {'error': 'No video file provided'},
+                status=status.HTTP_400_BAD_REQUEST
+            )
+
+        video_file = request.FILES['video']
+
+        # Validate file type
+        allowed_extensions = ['.mp4', '.avi', '.mkv', '.mov', '.wmv']
+        file_ext = os.path.splitext(video_file.name)[1].lower()
+        if file_ext not in allowed_extensions:
+            return Response(
+                {'error': f'Invalid file type. Allowed: {", ".join(allowed_extensions)}'},
+                status=status.HTTP_400_BAD_REQUEST
+            )
+
+        try:
+            # Save temporarily
+            file_path = default_storage.save(f'temp/{video_file.name}', video_file)
+            full_path = default_storage.path(file_path)
+
+            # Analyze
+            results = video_analyzer.analyze(full_path)
+
+            # Save to database
+            analysis = VideoAnalysis.objects.create(
+                user=request.user if request.user.is_authenticated else None,
+                video_file=video_file,
+                is_deepfake=results['is_deepfake'],
+                confidence_score=results['confidence'],
+                analysis_details=results
+            )
+
+            # Clean up temp file
+            default_storage.delete(file_path)
+
+            return Response({
+                'id': str(analysis.id),
+                'is_deepfake': results['is_deepfake'],
+                'confidence': results['confidence'],
+                'probabilities': results['probabilities'],
                 'analysis_type': results['analysis_type'],
                 'created_at': analysis.created_at
             }, status=status.HTTP_200_OK)

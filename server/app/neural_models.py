@@ -4,6 +4,7 @@ import torch.nn.functional as F
 import numpy as np
 import librosa
 from transformers import BertTokenizer, BertModel
+import torchvision.models
 
 class AudioDeepfakeDetector(nn.Module):
     """
@@ -64,6 +65,73 @@ class AudioDeepfakeDetector(nn.Module):
         output = self.fc2(x)
         
         return output, attn_weights
+
+class VideoDeepfakeDetector(nn.Module):
+    """
+    CNN-LSTM based model for detecting video deepfakes.
+    Extracts spatial features from frames using a pre-trained CNN and models temporal dependencies with an LSTM.
+    """
+    def __init__(self, num_classes=2, hidden_size=256, num_layers=2, dropout_rate=0.5):
+        super(VideoDeepfakeDetector, self).__init__()
+
+        # Feature extractor: Pre-trained ResNet-18
+        # We remove the final classification layer (avgpool and fc)
+        resnet = torchvision.models.resnet18(weights=torchvision.models.ResNet18_Weights.DEFAULT)
+        self.feature_extractor = nn.Sequential(*list(resnet.children())[:-1])
+
+        # Freeze CNN layers initially
+        for param in self.feature_extractor.parameters():
+            param.requires_grad = False
+
+        # The output features from ResNet-18 before the final FC layer is 512 (after global average pooling)
+        cnn_output_dim = 512 
+
+        # LSTM for temporal modeling
+        self.lstm = nn.LSTM(cnn_output_dim, hidden_size, num_layers,
+                            batch_first=True, bidirectional=True)
+
+        # Classification head
+        self.dropout = nn.Dropout(dropout_rate)
+        # Bidirectional LSTM output is hidden_size * 2
+        self.fc1 = nn.Linear(hidden_size * 2, 128) 
+        self.fc2 = nn.Linear(128, num_classes)
+
+    def forward(self, x):
+        # x shape: (batch_size, num_frames, channels, height, width)
+        batch_size, num_frames, C, H, W = x.size()
+
+        # Reshape to process frames individually through CNN
+        # (batch_size * num_frames, channels, height, width)
+        x_reshaped = x.view(-1, C, H, W)
+
+        # Extract features using CNN
+        # Output shape: (batch_size * num_frames, cnn_output_dim, 1, 1)
+        cnn_features = self.feature_extractor(x_reshaped)
+
+        # Flatten CNN features: (batch_size * num_frames, cnn_output_dim)
+        cnn_features = cnn_features.view(batch_size * num_frames, -1)
+
+        # Reshape for LSTM: (batch_size, num_frames, cnn_output_dim)
+        lstm_input = cnn_features.view(batch_size, num_frames, -1)
+
+        # Process through LSTM
+        # lstm_out shape: (batch_size, num_frames, hidden_size * 2)
+        lstm_out, _ = self.lstm(lstm_input)
+
+        # Take the output of the last time step for classification
+        # Or, if using attention, apply attention here. For simplicity, we'll use the last hidden state.
+        # Alternatively, one could use global average pooling over the time dimension:
+        # context = torch.mean(lstm_out, dim=1)
+        
+        # Using the last hidden state of the LSTM (for batch_first=True)
+        context = lstm_out[:, -1, :] 
+
+        # Classification
+        x = F.relu(self.fc1(context))
+        x = self.dropout(x)
+        output = self.fc2(x)
+        
+        return output
 
 
 class TextAIDetector(nn.Module):

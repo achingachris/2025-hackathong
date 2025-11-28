@@ -14,6 +14,19 @@ class AudioAnalysis(models.Model):
     class Meta:
         ordering = ['-created_at']
 
+
+class VideoAnalysis(models.Model):
+    id = models.UUIDField(primary_key=True, default=uuid.uuid4, editable=False)
+    user = models.ForeignKey(User, on_delete=models.CASCADE, null=True, blank=True)
+    video_file = models.FileField(upload_to='video_uploads/')
+    is_deepfake = models.BooleanField(null=True)
+    confidence_score = models.FloatField(null=True)
+    analysis_details = models.JSONField(default=dict)
+    created_at = models.DateTimeField(auto_now_add=True)
+    
+    class Meta:
+        ordering = ['-created_at']
+
 class TextAnalysis(models.Model):
     id = models.UUIDField(primary_key=True, default=uuid.uuid4, editable=False)
     user = models.ForeignKey(User, on_delete=models.CASCADE, null=True, blank=True)
